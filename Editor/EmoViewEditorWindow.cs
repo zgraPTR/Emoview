@@ -4,35 +4,38 @@ using UnityEditor;
 using UnityEngine;
 using VRC.SDK3.Avatars.Components;
 
+/// <summary>
+/// EmoView 用 EditorWindow
+/// </summary>
 public class EmoViewEditorWindow : EditorWindow
 {
-    private VRCAvatarDescriptor _avatarDescriptor;
-    private string _outputPath = "Assets";
-    private int _renderResolution = 1024;
+    private VRCAvatarDescriptor _avatarDescriptor;                   // 選択されたアバター
+    private string _outputPath = "Assets";                           // 出力フォルダパス初期値
+    private int _renderResolution = 1024;                            // 画像解像度初期値
 
-    private AnimationProcessor _animProcessor;
-    private Logger _logger;
+    private AnimationProcessor _animProcessor;                       // アニメーション処理クラス
+    private Logger _logger;                                           // ロガークラス
 
-    private Vector2 _logScroll;
+    private Vector2 _logScroll;                                       // ログスクロール位置
 
     [MenuItem("Tools/RRT/EmoView")]
     public static void ShowWindow()
     {
-        GetWindow<EmoViewEditorWindow>("EmoView").minSize = new Vector2(560, 800);
+        GetWindow<EmoViewEditorWindow>("EmoView").minSize = new Vector2(560, 800); // ウィンドウ生成
     }
 
     private void OnEnable()
     {
-        _logger = new Logger();
-        _animProcessor = new AnimationProcessor(_logger);
+        _logger = new Logger();                                       // Logger生成
+        _animProcessor = new AnimationProcessor(_logger);             // AnimationProcessor生成
     }
 
     private void OnGUI()
     {
         DrawHeader();               // ヘッダー表示
-        DrawAvatarField();          // アバターフィールド表示
-        DrawSettings();             // アニメーション、出力先フォルダ選択
-        DrawControls();             // 画像生成、ログクリアボタン表示
+        DrawAvatarField();          // アバター選択フィールド表示
+        DrawSettings();             // 解像度・出力先・.animフォルダ選択
+        DrawControls();             // 画像生成ボタン、ログクリアボタン表示
         DrawLogArea();              // ログエリア表示
     }
 
@@ -41,10 +44,10 @@ public class EmoViewEditorWindow : EditorWindow
     /// </summary>
     private void DrawHeader()
     {
-        EditorGUILayout.Space();
-        EditorGUILayout.LabelField("EmoView - Avatar Expression Capture", EditorStyles.boldLabel);
-        EditorGUILayout.LabelField("VRCAvatarDescriptor を持つオブジェクトを選択してください。", EditorStyles.miniLabel);
-        EditorGUILayout.Space();
+        EditorGUILayout.Space();                                         // 空白スペース
+        EditorGUILayout.LabelField("EmoView - Avatar Expression Capture", EditorStyles.boldLabel); // ヘッダータイトル
+        EditorGUILayout.LabelField("VRCAvatarDescriptor を持つオブジェクトを選択してください。", EditorStyles.miniLabel); // 説明文
+        EditorGUILayout.Space();                                         // 空白スペース
     }
 
     /// <summary>
@@ -52,12 +55,12 @@ public class EmoViewEditorWindow : EditorWindow
     /// </summary>
     private void DrawAvatarField()
     {
-        EditorGUILayout.LabelField("アバター選択", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("アバター選択", EditorStyles.boldLabel); // ラベル表示
         _avatarDescriptor = (VRCAvatarDescriptor)EditorGUILayout.ObjectField(
-            new GUIContent("VRC Avatar Descriptor"),
-            _avatarDescriptor,
-            typeof(VRCAvatarDescriptor),
-            true
+            new GUIContent("VRC Avatar Descriptor"),                      // フィールドラベル
+            _avatarDescriptor,                                             // 現在の値
+            typeof(VRCAvatarDescriptor),                                   // 許可する型
+            true                                                            // シーン内オブジェクト許可
         );
     }
 
@@ -66,66 +69,75 @@ public class EmoViewEditorWindow : EditorWindow
     /// </summary>
     private void DrawSettings()
     {
-        EditorGUILayout.Space();
-        EditorGUILayout.LabelField("撮影設定", EditorStyles.boldLabel);
+        EditorGUILayout.Space();                                         // 空白スペース
+        EditorGUILayout.LabelField("撮影設定", EditorStyles.boldLabel);   // 設定ラベル
 
         using (new EditorGUI.IndentLevelScope())
-        {
-            _renderResolution = Mathf.Max(256, EditorGUILayout.IntField("画像の解像度 (px)", _renderResolution));
+        {                                                               // インデント調整
+            _renderResolution = Mathf.Max(256, EditorGUILayout.IntField("画像の解像度 (px)", _renderResolution)); // 解像度設定
 
             using (new EditorGUILayout.HorizontalScope())
-            {                                                                               // 出力フォルダ選択
-                EditorGUILayout.PrefixLabel("画像出力フォルダ");
-                EditorGUILayout.SelectableLabel(_outputPath, GUILayout.Height(EditorGUIUtility.singleLineHeight));
+            {                                                           // 出力フォルダ選択行
+                EditorGUILayout.PrefixLabel("画像出力フォルダ");       // 左側ラベル
+                EditorGUILayout.SelectableLabel(_outputPath, GUILayout.Height(EditorGUIUtility.singleLineHeight)); // 選択表示
                 if (GUILayout.Button("選択", GUILayout.Width(90)))
-                {
-                    string selected = EditorUtility.OpenFolderPanel("出力フォルダを選択", _outputPath, "");
+                {                                                       // ボタン押下時
+                    string selected = EditorUtility.OpenFolderPanel("出力フォルダを選択", _outputPath, ""); // フォルダ選択
                     if (!string.IsNullOrEmpty(selected))
-                    {
-                        _outputPath = selected;
-                        _logger.Log($"保存先フォルダ: {_outputPath}");
+                    {                                                   // 選択された場合
+                        _outputPath = selected;                        // 出力先更新
+                        _logger.Log($"保存先フォルダ: {_outputPath}"); // ログ出力
                     }
                 }
             }
 
             using (new EditorGUILayout.HorizontalScope())
-            {                                                                               // .animフォルダ選択
-                EditorGUILayout.LabelField($"読み込み済み: {_animProcessor.AnimCount} クリップ");         // 左側ラベルは固定幅にする（これでボタンが右に押される）
-                GUILayout.FlexibleSpace(); // 余白を入れてボタンを右端へ
+            {                                                           // .animフォルダ選択行
+                EditorGUILayout.LabelField($"読み込み済み: {_animProcessor.AnimCount} クリップ"); // 左側ラベル
+                GUILayout.FlexibleSpace();                              // ボタンを右端に寄せる余白
                 if (GUILayout.Button(".anim入りフォルダを選択", GUILayout.Height(24)))
-                {
-                    _animProcessor.SelectAnimFolder();
+                {                                                       // ボタン押下時
+                    _animProcessor.SelectAnimFolder();                 // フォルダ選択処理
                 }
-                GUILayout.FlexibleSpace();
+                GUILayout.FlexibleSpace();                              // 余白
             }
         }
     }
 
+    /// <summary>
+    /// 画像生成・ログクリアボタン表示
+    /// </summary>
     private void DrawControls()
     {
-        EditorGUILayout.Space();
+        EditorGUILayout.Space();                                         // 空白スペース
         using (new EditorGUILayout.HorizontalScope())
-        {
-            GUI.enabled = _avatarDescriptor != null && _animProcessor.AnimCount > 0;
+        {                                                               // 横並びレイアウト
+            GUI.enabled = _avatarDescriptor != null && _animProcessor.AnimCount > 0; // 条件付きで有効化
 
             if (GUILayout.Button("表情一覧画像を作成", GUILayout.Height(40)))
-            {
+            {                                                           // 画像生成ボタン押下時
                 SafeRun(async () =>
-                {
-                    bool wasActive = _avatarDescriptor.gameObject.activeSelf;               // 元の表示状態を保持
-                    if (wasActive) _avatarDescriptor.gameObject.SetActive(false);           // 表示中なら非表示に
+                {                                                       // 例外処理付き非同期呼び出し
+                    bool wasActive = _avatarDescriptor.gameObject.activeSelf; // 元の表示状態保存
+                    if (wasActive)
+                    {                                                   // 表示中なら
+                        _avatarDescriptor.gameObject.SetActive(false); // 非表示
+                    }
 
                     await _animProcessor.ProcessAnimationsAsync(_avatarDescriptor, _outputPath, _renderResolution); // 撮影処理
 
-                    if (wasActive) _avatarDescriptor.gameObject.SetActive(true);            // 元々表示されていた場合のみ再表示
+                    if (wasActive)
+                    {                                                   // 元々表示されていた場合
+                        _avatarDescriptor.gameObject.SetActive(true);  // 再表示
+                    }
                 });
             }
 
-            GUI.enabled = true;
+            GUI.enabled = true;                                         // ボタン状態戻す
 
             if (GUILayout.Button("ログをクリア", GUILayout.Height(40), GUILayout.Width(140)))
-            {
-                _logger.Clear();
+            {                                                           // ログクリアボタン押下時
+                _logger.Clear();                                        // ログクリア
             }
         }
     }
@@ -135,33 +147,33 @@ public class EmoViewEditorWindow : EditorWindow
     /// </summary>
     private void DrawLogArea()
     {
-        EditorGUILayout.Space();
-        EditorGUILayout.LabelField("ログ", EditorStyles.boldLabel);
+        EditorGUILayout.Space();                                         // 空白スペース
+        EditorGUILayout.LabelField("ログ", EditorStyles.boldLabel);      // ラベル表示
 
-        _logScroll = EditorGUILayout.BeginScrollView(_logScroll, GUILayout.MinHeight(420));
+        _logScroll = EditorGUILayout.BeginScrollView(_logScroll, GUILayout.MinHeight(420)); // スクロール開始
         foreach (var line in _logger.Lines)
-        {
-            EditorGUILayout.SelectableLabel(line, GUILayout.Height(16));
+        {                                                               // 各ログ行表示
+            EditorGUILayout.SelectableLabel(line, GUILayout.Height(16)); // 選択可能ラベル表示
         }
-        EditorGUILayout.EndScrollView();
+        EditorGUILayout.EndScrollView();                                 // スクロール終了
     }
 
     /// <summary>
-    /// 例外キャッチ用
+    /// 例外キャッチ用非同期ラッパー
     /// </summary>
-    /// <param name="taskFunc"></param>
+    /// <param name="taskFunc">非同期処理</param>
     private void SafeRun(System.Func<Task> taskFunc)
     {
-        _ = RunInternal();
+        _ = RunInternal();                                               // 非同期実行
         async Task RunInternal()
-        {
+        {                                                               // 内部非同期処理
             try
             {
-                await taskFunc();
+                await taskFunc();                                        // 処理実行
             }
             catch (System.Exception e)
-            {
-                _logger.Log("例外: " + e);
+            {                                                           // 例外発生時
+                _logger.Log("例外: " + e);                               // ログ出力
             }
         }
     }

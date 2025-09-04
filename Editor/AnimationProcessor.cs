@@ -11,141 +11,178 @@ using VRC.SDK3.Avatars.Components;
 /// </summary>
 public class AnimationProcessor
 {
-    private readonly Dictionary<string, string> _animFiles = new(); // アニメーションファイルリスト
-    private readonly Logger _logger;
-    private readonly CameraController _cameraController;            // カメラを扱うクラスインスタンス
-    private Texture2D _texture2D;                                   // Texture2D を再利用するための変数
-    public int AnimCount => _animFiles.Count;                       // アニメーションファイル数
+    private readonly Dictionary<string, string> _animFiles = new();     // アニメーションファイル名とパスの辞書
+    private readonly Logger _logger;                                    // ロガーインスタンス
+    private readonly CameraController _cameraController;                // カメラ操作用クラス
+    private Texture2D _texture2D;                                       // Texture2Dを再利用する変数
+    public int AnimCount => _animFiles.Count;                           // アニメーションファイル数取得
 
     public AnimationProcessor(Logger logger)
-    {                                                               // コンストラクタ
-        _logger = logger;                                           // Loggerインスタンスを受け取り
-        _cameraController = new CameraController(_logger);          // カメラを扱うクラスインスタンス生成
+    {                                                                   // コンストラクタ
+        _logger = logger;                                               // Loggerインスタンスを設定
+        _cameraController = new CameraController(_logger);              // カメラコントローラ生成
     }
 
     /// <summary>
-    /// アニメーション入りフォルダ選択時の関数
+    /// アニメーション入りフォルダを選択する処理
     /// </summary>
     public void SelectAnimFolder()
     {
-        _animFiles.Clear();                                         // アニメーションファイルリストクリア
-        string folderAbs = EditorUtility.OpenFolderPanel(".animのフォルダを選択", Application.dataPath, "");    // フォルダ選択ダイアログ表示
-        if (string.IsNullOrEmpty(folderAbs)) return;                // 空なら終了
-
-        string folderRel = FileUtil.GetProjectRelativePath(folderAbs);
-        string root = Directory.Exists(folderRel) ? folderRel : folderAbs;
-
-        foreach (var f in Directory.GetFiles(root, "*.anim", SearchOption.AllDirectories))
-        {                                                           // アニメーションファイル一覧
-            _animFiles[Path.GetFileNameWithoutExtension(f)] = f.Replace('\\', '/');
+        _animFiles.Clear();                                             // 既存のアニメーションリストをクリア
+        string folderAbs = EditorUtility.OpenFolderPanel(".animのフォルダを選択", Application.dataPath, ""); // フォルダ選択ダイアログ
+        if (string.IsNullOrEmpty(folderAbs))
+        {                                                               // フォルダが選択されなかった場合
+            return;                                                     // 処理終了
         }
 
-        _logger.Log($"{_animFiles.Count} 個のアニメーションクリップを検出");
+        string folderRel = FileUtil.GetProjectRelativePath(folderAbs);  // プロジェクト相対パス取得
+        string root = Directory.Exists(folderRel) ? folderRel : folderAbs; // 実在フォルダをrootに設定
+
+        foreach (var f in Directory.GetFiles(root, "*.anim", SearchOption.AllDirectories))
+        {                                                               // フォルダ内の.animファイル全てを取得
+            _animFiles[Path.GetFileNameWithoutExtension(f)] = f.Replace('\\', '/'); // 辞書に追加（ファイル名→パス）
+        }
+
+        _logger.Log($"{_animFiles.Count} 個のアニメーションクリップを検出"); // 検出結果をログ出力
     }
 
+    /// <summary>
+    /// アニメーションを順次処理してレンダリングし、保存する
+    /// </summary>
+    /// <param name="descriptor">VRCAvatarDescriptor</param>
+    /// <param name="outputPath">出力フォルダパス</param>
+    /// <param name="resolution">解像度</param>
     public async Task ProcessAnimationsAsync(VRCAvatarDescriptor descriptor, string outputPath, int resolution)
     {
         if (descriptor == null)
-        {
-            _logger.Log("エラー: アバター未選択");
-            return;
+        {                                                               // アバターが未設定の場合
+            _logger.Log("エラー: アバター未選択");                      // エラーログ
+            return;                                                     // 処理終了
         }
 
-        // RenderTexture と Texture2D を使い回す
-        _cameraController.SetupCamera(resolution);
-        RenderTexture rt = _cameraController.RenderTexture;
-        _texture2D = new Texture2D(rt.width, rt.height, TextureFormat.RGB24, false);
+        _cameraController.SetupCamera(resolution);                      // カメラセットアップ
+        RenderTexture rt = _cameraController.RenderTexture;             // カメラのRenderTextureを取得
+        _texture2D = new Texture2D(rt.width, rt.height, TextureFormat.RGB24, false); // Texture2Dを生成
 
         foreach (var kv in _animFiles)
-        {                                                           // アニメーションファイル毎の処理
-            AnimationClip clip = LoadClip(kv.Value);                // アニメーションファイル読み込み
+        {                                                               // 各アニメーションファイル処理
+            AnimationClip clip = LoadClip(kv.Value);                    // アニメーション読み込み
             if (clip == null)
-            {                                                       // 内容無し
-                _logger.Log($"読み込み失敗: {kv.Key}");
-                continue;
+            {                                                           // 読み込み失敗の場合
+                _logger.Log($"読み込み失敗: {kv.Key}");                 // エラーログ
+                continue;                                               // 次のアニメーションへ
             }
 
-            GameObject working = Object.Instantiate(descriptor.gameObject); // アバターを生成
-            working.name += "__EmoViewPreview";                             // 名前の末尾に追加
-            working.SetActive(true);                                        // 有効化
+            GameObject working = Object.Instantiate(descriptor.gameObject); // アバターのコピー生成
+            working.name += "__EmoViewPreview";                     // 名前を変更
+            working.SetActive(true);                                // アクティブ化
 
-            Animator animator = working.GetComponent<Animator>();           // アニメーションコンポーネント取得
-            bool prevRootMotion = animator ? animator.applyRootMotion : false;
-            if (animator) animator.applyRootMotion = false;                 // ルートのアニメーション無効化
+            Animator animator = working.GetComponent<Animator>();   // Animator取得
+            bool prevRootMotion = false;                            // 元のルートモーション保存用
+            if (animator != null)
+            {                                                       // Animatorが存在する場合
+                prevRootMotion = animator.applyRootMotion;          // 元のルートモーションを保存
+                animator.applyRootMotion = false;                   // 処理中は無効化
+            }
 
-            AnimationMode.StartAnimationMode();                             // アニメーションモードにする
+            AnimationMode.StartAnimationMode();                     // AnimationMode開始
 
-            _logger.Log($"撮影: {kv.Key}");
+            _logger.Log($"撮影: {kv.Key}");                         // 撮影開始ログ
 
-            float sampleTime = RepresentativeTime(clip);
-            AnimationMode.SampleAnimationClip(working, clip, sampleTime);       // アバターを生成
+            float sampleTime = RepresentativeTime(clip);            // 代表フレーム時間計算
+            AnimationMode.SampleAnimationClip(working, clip, sampleTime); // アニメーション適用
 
-            EditorApplication.QueuePlayerLoopUpdate();
+            EditorApplication.QueuePlayerLoopUpdate();              // エディタ更新キュー追加
+            await Task.Yield();                                     // 非同期で待機
 
-            await Task.Yield();
+            _cameraController.AutoFrame(descriptor, working);       // カメラ自動フレーム
+            RenderAndSave(kv.Key, outputPath);                      // 描写と保存処理
 
-            _cameraController.AutoFrame(descriptor, working);                   // アバターを生成
-            RenderAndSave(kv.Key, outputPath);                                  // 描写と保存を行う
+            AnimationMode.StopAnimationMode();                      // AnimationMode停止
 
-            AnimationMode.StopAnimationMode();                                  // アニメーションモードを止める
+            if (animator != null)
+            {                                                       // Animatorが存在する場合
+                animator.applyRootMotion = prevRootMotion;          // 元の状態に戻す
+            }
 
-            if (animator) animator.applyRootMotion = prevRootMotion;            // ルートのアニメーションを戻す
-
-            Object.DestroyImmediate(working);                                   // 使用したアバターを削除
+            Object.DestroyImmediate(working);                       // アバターコピー破棄
         }
 
-        _cameraController.Cleanup();                                            // 破棄など後始末
-        Object.DestroyImmediate(_texture2D);                                    // Texture2D 破棄
-        _texture2D = null;
+        _cameraController.Cleanup();                                // カメラ後始末
+        Object.DestroyImmediate(_texture2D);                        // Texture2D破棄
+        _texture2D = null;                                          // 参照クリア
 
-        _logger.Log("全ての処理が完了しました。");
+        _logger.Log("全ての処理が完了しました。");                      // 完了ログ
     }
 
     /// <summary>
-    /// 
+    /// AnimationClipをロードする
     /// </summary>
-    /// <param name="path">アニメーションファイルパス</param>
-    /// <returns>AnimationClip or null</returns>
+    /// <param name="path">アニメーションパス</param>
+    /// <returns>AnimationClipまたはnull</returns>
     private AnimationClip LoadClip(string path)
     {
-        return path.StartsWith("Assets") ? AssetDatabase.LoadAssetAtPath<AnimationClip>(path) : null;
+        if (string.IsNullOrEmpty(path))
+        {                                                           // パスが空の場合
+            return null;                                           // nullを返す
+        }
+
+        return path.StartsWith("Assets") ? AssetDatabase.LoadAssetAtPath<AnimationClip>(path) : null; // アセット読み込み
     }
 
     /// <summary>
-    /// 代表的な時間（代表フレーム）」を計算する処理
+    /// 代表的な時間（代表フレーム）を計算
     /// </summary>
     /// <param name="clip">AnimationClip</param>
-    /// <returns>null </returns>
+    /// <returns>代表時間</returns>
     private float RepresentativeTime(AnimationClip clip)
     {
-        if (clip == null || clip.length <= Mathf.Epsilon) return 0f;
-        return clip.isLooping ? clip.length * 0.5f : Mathf.Max(0f, clip.length - 1f / Mathf.Max(30f, clip.frameRate));
+        if (clip == null || clip.length <= Mathf.Epsilon)
+        {                                                           // 無効なクリップの場合
+            return 0f;                                             // 0を返す
+        }
+
+        if (clip.isLooping)
+        {                                                           // ループする場合
+            return clip.length * 0.5f;                              // 途中の時間を返す
+        }
+        else
+        {                                                           // ループしない場合
+            return Mathf.Max(0f, clip.length - 1f / Mathf.Max(30f, clip.frameRate)); // 最後のフレーム付近の時間を返す
+        }
     }
 
     /// <summary>
-    /// 描写と保存を行う
+    /// RenderTexture描写とPNG保存処理
     /// </summary>
-    /// <param name="animName">アニメーションファイル名</param>
+    /// <param name="animName">アニメーション名</param>
     /// <param name="outputPath">出力フォルダ</param>
     private void RenderAndSave(string animName, string outputPath)
     {
-        Camera cam = _cameraController.RenderCamera;
-        if (cam == null) { _logger.Log("エラー: カメラ未設定"); return; }
+        Camera cam = _cameraController.RenderCamera;               // カメラ取得
+        if (cam == null)
+        {                                                           // カメラが未設定の場合
+            _logger.Log("エラー: カメラ未設定");                  // エラーログ
+            return;                                                 // 処理終了
+        }
 
-        RenderTexture rt = _cameraController.RenderTexture;     // カメラのRenderTexture取得
-        cam.Render();                                           // RenderTextureに描写
+        RenderTexture rt = _cameraController.RenderTexture;        // RenderTexture取得
+        cam.Render();                                               // 描画実行
 
-        RenderTexture.active = rt;                              // RenderTextureをアクティブにする
-        _texture2D.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);   // _texture2D に読み込み。
-        _texture2D.Apply();                                     // 読み込んで反映
-        RenderTexture.active = null;                            // 非アクティブ化
+        RenderTexture.active = rt;                                  // RenderTextureをアクティブ化
+        _texture2D.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0); // ピクセル読み込み
+        _texture2D.Apply();                                         // Texture2Dに反映
+        RenderTexture.active = null;                                // 非アクティブ化
 
-        if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);   // 出力先のフォルダがなければ作成
+        if (!Directory.Exists(outputPath))
+        {                                                           // 出力フォルダが存在しない場合
+            Directory.CreateDirectory(outputPath);                 // 作成
+        }
 
-        string savePath = Path.Combine(outputPath, animName + ".png");              // 出力先ファイルパス
-        File.WriteAllBytes(savePath, _texture2D.EncodeToPNG());                     // 出力先に書き込む
+        string savePath = Path.Combine(outputPath, animName + ".png"); // 出力ファイルパス生成
+        File.WriteAllBytes(savePath, _texture2D.EncodeToPNG());       // PNG書き込み
 
-        _logger.Log($"保存: {savePath}");
+        _logger.Log($"保存: {savePath}");                          // 保存ログ
     }
 }
 #endif
