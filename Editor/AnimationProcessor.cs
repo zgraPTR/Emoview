@@ -105,6 +105,8 @@ public class AnimationProcessor
                 animator.applyRootMotion = prevRootMotion;          // 元の状態に戻す
             }
 
+            working.SetActive(false);                               // アバターを非表示にする
+            await Task.Yield();                                     // 次フレーム待機
             Object.DestroyImmediate(working);                       // アバターコピー破棄
         }
 

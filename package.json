@@ -1,7 +1,7 @@
 {
   "name": "jp.raru37m.emoview",
   "displayName": "Emoview",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "unity": "2022.3",
   "description": "アバターの表情アニメーションの一覧を画像で保存",
   "vrchatVersion": "2022.1.1",
