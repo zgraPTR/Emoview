@@ -1,0 +1,12 @@
+{
+  "name": "jp.raru37m.emoview",
+  "displayName": "Emoview",
+  "version": "1.0.0",
+  "unity": "2022.3",
+  "description": "アバターの表情アニメーションの一覧を画像で保存",
+  "vrchatVersion": "2022.1.1",
+  "author": {
+    "name": "Raru37m",
+    "url": "https://github.com/zgraPTR/"
+  }
+}
