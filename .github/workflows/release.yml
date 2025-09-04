@@ -27,7 +27,6 @@ jobs:
         if: ${{ steps.build.outputs.package-version != '0.0.0' }}
         with:
           tag_name: ${{ steps.build.outputs.package-version }}
-          draft: true
           generate_release_notes: true
           files: |
             ${{ steps.build.outputs.zip-path }}
